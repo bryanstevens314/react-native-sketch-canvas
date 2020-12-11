@@ -55,6 +55,7 @@ export interface SavePreference {
 }
 
 export interface LocalSourceImage {
+  base64: string
   path: string
   directory?: string
   mode?: 'AspectFill' | 'AspectFit' | 'ScaleToFill'
@@ -99,7 +100,7 @@ export class SketchCanvas extends React.Component<SketchCanvasProps & ViewProper
    * @param includeText Set to `true` to include the text drawn from `Text`.
    * @param cropToImageSize Set to `true` to crop output image to the image loaded from `LocalSourceImage`
    */
-  save(imageType: ImageType, transparent: boolean, folder: string, filename: string, includeImage: boolean, includeText: boolean, cropToImageSize: boolean): void
+  save(imageType: ImageType, folder: string, filename: string, transparent: boolean, includeImage: boolean, includeText: boolean, cropToImageSize: boolean): void
   getPaths(): Path[]
 
   /**
@@ -109,6 +110,11 @@ export class SketchCanvas extends React.Component<SketchCanvasProps & ViewProper
    * @param cropToImageSize Set to `true` to crop output image to the image loaded from `LocalSourceImage`
    */
   getBase64(imageType: ImageType, transparent: boolean, includeImage: boolean, includeText: boolean, cropToImageSize: boolean, callback: (error: any, result?: string) => void): void
+  
+  /**
+   * @param imagePath "png" or "jpg"
+   */
+  drawImage(imagePath, callback: (error: any, result?: string) => void): void
 
   static MAIN_BUNDLE: string
   static DOCUMENT: string
@@ -169,7 +175,7 @@ export default class RNSketchCanvas extends React.Component<RNSketchCanvasProps 
   undo(): number
   addPath(data: Path): void
   deletePath(id: number): void
-  save(): void
+  save(imageType: ImageType, folder: string, filename: string, transparent: boolean, includeImage: boolean, includeText: boolean, cropToImageSize: boolean): void
   nextStrokeWidth(): void
 
   static MAIN_BUNDLE: string

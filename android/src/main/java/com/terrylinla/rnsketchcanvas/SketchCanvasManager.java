@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.os.Build;
 import android.util.Log;
 
 import com.facebook.common.logging.FLog;
@@ -26,9 +27,12 @@ import java.util.Map;
 import java.util.ArrayList;
 import android.graphics.PointF;
 
+import androidx.annotation.RequiresApi;
+
 import javax.annotation.Nullable;
 
 public class SketchCanvasManager extends SimpleViewManager<SketchCanvas> {
+    public static final int COMMAND_DRAW_IMAGE = 0;
     public static final int COMMAND_ADD_POINT = 1;
     public static final int COMMAND_NEW_PATH = 2;
     public static final int COMMAND_CLEAR = 3;
@@ -55,7 +59,10 @@ public class SketchCanvasManager extends SimpleViewManager<SketchCanvas> {
 
     @ReactProp(name = PROPS_LOCAL_SOURCE_IMAGE)
     public void setLocalSourceImage(SketchCanvas viewContainer, ReadableMap localSourceImage) {
-        if (localSourceImage != null && localSourceImage.getString("filename") != null) {
+
+        if (localSourceImage != null && localSourceImage.hasKey("base64")) {
+            viewContainer.drawImage(localSourceImage.getString("base64"));
+        }else if (localSourceImage != null && localSourceImage.getString("filename") != null) {
             viewContainer.openImageFile(
                 localSourceImage.hasKey("filename") ? localSourceImage.getString("filename") : null,
                 localSourceImage.hasKey("directory") ? localSourceImage.getString("directory") : "",
@@ -73,6 +80,7 @@ public class SketchCanvasManager extends SimpleViewManager<SketchCanvas> {
     public Map<String,Integer> getCommandsMap() {
         Map<String, Integer> map = new HashMap<>();
 
+        map.put("drawImage", COMMAND_DRAW_IMAGE);
         map.put("addPoint", COMMAND_ADD_POINT);
         map.put("newPath", COMMAND_NEW_PATH);
         map.put("clear", COMMAND_CLEAR);
@@ -89,9 +97,14 @@ public class SketchCanvasManager extends SimpleViewManager<SketchCanvas> {
 
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     @Override
     public void receiveCommand(SketchCanvas view, int commandType, @Nullable ReadableArray args) {
         switch (commandType) {
+            case COMMAND_DRAW_IMAGE: {
+                view.drawImage((String)args.getString(0));
+                return;
+            }
             case COMMAND_ADD_POINT: {
                 view.addPoint((float)args.getDouble(0), (float)args.getDouble(1));
                 return;
@@ -119,7 +132,15 @@ public class SketchCanvasManager extends SimpleViewManager<SketchCanvas> {
                 return;
             }
             case COMMAND_SAVE: {
-                view.save(args.getString(0), args.getString(1), args.getString(2), args.getBoolean(3), args.getBoolean(4), args.getBoolean(5), args.getBoolean(6));
+                view.save(
+                        args.getString(0),
+                        args.getString(1),
+                        args.getString(2),
+                        args.getBoolean(3),
+                        args.getBoolean(4),
+                        args.getBoolean(5),
+                        args.getBoolean(6)
+                );
                 return;
             }
             case COMMAND_END_PATH: {

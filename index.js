@@ -55,7 +55,7 @@ export default class RNSketchCanvas extends React.Component {
       alignment: PropTypes.oneOf(['Left', 'Center', 'Right']),
       lineHeightMultiple: PropTypes.number,
     })),
-    localSourceImage: PropTypes.shape({ filename: PropTypes.string, directory: PropTypes.string, mode: PropTypes.string }),
+    localSourceImage: PropTypes.shape({ base64: PropTypes.string, filename: PropTypes.string, directory: PropTypes.string, mode: PropTypes.string }),
 
     permissionDialogTitle: PropTypes.string,
     permissionDialogMessage: PropTypes.string,
@@ -150,15 +150,12 @@ export default class RNSketchCanvas extends React.Component {
     this._sketchCanvas.deletePath(id)
   }
 
-  save() {
+  save(format, folder, filename, transparent, includeImage, includeText, cropToImageSize) {
     if (this.props.savePreference) {
-      const p = this.props.savePreference()
+      let p = this.props.savePreference()
       this._sketchCanvas.save(p.imageType, p.transparent, p.folder ? p.folder : '', p.filename, p.includeImage !== false, p.includeText !== false, p.cropToImageSize || false)
     } else {
-      const date = new Date()
-      this._sketchCanvas.save('png', false, '', 
-        date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + ('0' + date.getDate()).slice(-2) + ' ' + ('0' + date.getHours()).slice(-2) + '-' + ('0' + date.getMinutes()).slice(-2) + '-' + ('0' + date.getSeconds()).slice(-2),
-        true, true, false)
+      this._sketchCanvas.save(format, folder, filename, transparent, includeImage, includeText, cropToImageSize)
     }
   }
 
@@ -172,7 +169,7 @@ export default class RNSketchCanvas extends React.Component {
   _renderItem = ({ item, index }) => (
     <TouchableOpacity style={{ marginHorizontal: 2.5 }} onPress={() => {
       if (this.state.color === item.color) {
-        const index = this.props.alphlaValues.indexOf(this.state.alpha)
+        let index = this.props.alphlaValues.indexOf(this.state.alpha)
         if (this._alphaStep < 0) {
           this._alphaStep = index === 0 ? 1 : -1
           this.setState({ alpha: this.props.alphlaValues[index + this._alphaStep] })
@@ -195,7 +192,7 @@ export default class RNSketchCanvas extends React.Component {
   }
 
   async componentDidMount() {
-    const isStoragePermissionAuthorized = await requestPermissions(
+    let isStoragePermissionAuthorized = await requestPermissions(
       this.props.permissionDialogTitle,
       this.props.permissionDialogMessage,
     );

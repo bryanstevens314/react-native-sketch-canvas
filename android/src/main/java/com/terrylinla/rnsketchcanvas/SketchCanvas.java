@@ -1,5 +1,7 @@
 package com.terrylinla.rnsketchcanvas;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.graphics.Typeface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -9,10 +11,16 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.media.MediaScannerConnection;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
+
+import androidx.annotation.RequiresApi;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableMap;
@@ -23,7 +31,10 @@ import com.facebook.react.uimanager.events.RCTEventEmitter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 
 class CanvasText {
@@ -50,6 +61,7 @@ public class SketchCanvas extends View {
     private boolean mNeedsFullRedraw = true;
 
     private int mOriginalWidth, mOriginalHeight;
+    private Bitmap publisherImage;
     private Bitmap mBackgroundImage;
     private String mContentMode;
 
@@ -264,30 +276,68 @@ public class SketchCanvas extends View {
             event);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     public void save(String format, String folder, String filename, boolean transparent, boolean includeImage, boolean includeText, boolean cropToImageSize) {
-        File f = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES) + File.separator + folder);
-        boolean success = f.exists() ? true : f.mkdirs();
-        if (success) {
-            Bitmap bitmap = createImage(format.equals("png") && transparent, includeImage, includeText, cropToImageSize);
 
-            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES) +
-                File.separator + folder + File.separator + filename + (format.equals("png") ? ".png" : ".jpg"));
-            try {
-                bitmap.compress(
-                    format.equals("png") ? Bitmap.CompressFormat.PNG : Bitmap.CompressFormat.JPEG,
-                    format.equals("png") ? 100 : 90,
-                    new FileOutputStream(file));
-                this.onSaved(true, file.getPath());
-            } catch (Exception e) {
-                e.printStackTrace();
-                onSaved(false, null);
+        Bitmap bitmap = createImage(format.equals("png") && transparent, includeImage, includeText, cropToImageSize);
+
+//        MediaScannerConnection.scanFile(mContext, new String[]{file.getPath()}, null, null);
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            ContentValues values = contentValues();
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/" + folder);
+            values.put(MediaStore.Images.Media.IS_PENDING, true);
+
+            Uri uri = mContext.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri != null) {
+                try {
+                    saveImageToStream(bitmap, mContext.getContentResolver().openOutputStream(uri));
+                    values.put(MediaStore.Images.Media.IS_PENDING, false);
+                    mContext.getContentResolver().update(uri, values, null, null);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                }
+
             }
         } else {
-            Log.e("SketchCanvas", "Failed to create folder!");
-            onSaved(false, null);
+            File directory = new File(Environment.getExternalStorageDirectory().toString() + '/' + folder);
+
+            if (!directory.exists()) {
+                directory.mkdirs();
+            }
+            File file = new File(directory, filename + (format.equals("png") ? ".png" : ".jpeg"));
+            try {
+                saveImageToStream(bitmap, new FileOutputStream(file));
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DATA, file.getAbsolutePath());
+                mContext.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+
         }
     }
 
+    private ContentValues contentValues() {
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+        values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
+        }
+        return values;
+    }
+
+    private void saveImageToStream(Bitmap bitmap, OutputStream outputStream) {
+        if (outputStream != null) {
+            try {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+                outputStream.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
     public String getBase64(String format, boolean transparent, boolean includeImage, boolean includeText, boolean cropToImageSize) {
         WritableMap event = Arguments.createMap();
         Bitmap bitmap = createImage(format.equals("png") && transparent, includeImage, includeText, cropToImageSize);
@@ -298,6 +348,27 @@ public class SketchCanvas extends View {
             format.equals("png") ? 100 : 90,
             byteArrayOS);
         return Base64.encodeToString(byteArrayOS.toByteArray(), Base64.DEFAULT);
+    }
+
+    public void drawImage(String base64String) {
+        try {
+            byte[] imageBytes = Base64.decode(base64String, Base64.DEFAULT);
+
+            publisherImage = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+            if (publisherImage != null) {
+
+                mNeedsFullRedraw = true;
+                invalidate();
+                Rect dstRect = new Rect();
+                mDrawingCanvas.getClipBounds(dstRect);
+                mDrawingCanvas.drawBitmap(publisherImage, null,
+                        Utility.fillImage(publisherImage.getWidth(), publisherImage.getHeight(), dstRect.width(), dstRect.height(), "AspectFill"),
+                        null);
+            }
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     @Override
@@ -392,8 +463,15 @@ public class SketchCanvas extends View {
         if (mBackgroundImage != null && includeImage) {
             Rect targetRect = new Rect();
             Utility.fillImage(mBackgroundImage.getWidth(), mBackgroundImage.getHeight(), 
-                bitmap.getWidth(), bitmap.getHeight(), "AspectFit").roundOut(targetRect);
+                bitmap.getWidth(), bitmap.getHeight(), "AspectFill").roundOut(targetRect);
             canvas.drawBitmap(mBackgroundImage, null, targetRect, null);
+        }
+
+        if (publisherImage != null) {
+            Rect targetRect = new Rect();
+            Utility.fillImage(publisherImage.getWidth(), publisherImage.getHeight(),
+                    bitmap.getWidth(), bitmap.getHeight(), "AspectFill").roundOut(targetRect);
+            canvas.drawBitmap(publisherImage, null, targetRect, null);
         }
 
         if (includeText) {
