@@ -32,11 +32,17 @@ RCT_CUSTOM_VIEW_PROPERTY(localSourceImage, NSDictionary, RNSketchCanvas)
 {
     RNSketchCanvas *currentView = !view ? defaultView : view;
     NSDictionary *dict = [RCTConvert NSDictionary:json];
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [currentView openSketchFile:dict[@"filename"]
-                          directory:[dict[@"directory"] isEqual: [NSNull null]] ? @"" : dict[@"directory"]
-                        contentMode:[dict[@"mode"] isEqual: [NSNull null]] ? @"" : dict[@"mode"]];
-    });
+    if(dict[@"base64"] != nil){
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [currentView drawImage:dict[@"base64"]];
+        });
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [currentView openSketchFile:dict[@"filename"]
+                              directory:[dict[@"directory"] isEqual: [NSNull null]] ? @"" : dict[@"directory"]
+                            contentMode:[dict[@"mode"] isEqual: [NSNull null]] ? @"" : dict[@"mode"]];
+        });
+    }
 }
 
 RCT_CUSTOM_VIEW_PROPERTY(text, NSArray, RNSketchCanvas)

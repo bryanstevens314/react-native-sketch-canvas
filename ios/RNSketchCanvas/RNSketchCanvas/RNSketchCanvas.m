@@ -132,6 +132,24 @@
     _frozenImage = nil;
     _translucentFrozenImage = nil;
 }
+- (BOOL)drawImage:(NSString *)base64{
+    if (base64) {
+        NSData *data = [[NSData alloc]initWithBase64EncodedString:base64 options:NSDataBase64DecodingIgnoreUnknownCharacters];
+        UIImage *image = [UIImage imageWithData:data];
+        UIImage* mirroredImage = [UIImage imageWithCGImage:image.CGImage
+                                                    scale:image.scale
+                                              orientation:UIImageOrientationUpMirrored];
+        if(mirroredImage) {
+            _backgroundImage = mirroredImage;
+            _backgroundImageScaled = nil;
+            _backgroundImageContentMode = @"AspectFill";
+            [self setNeedsDisplay];
+
+            return YES;
+        }
+    }
+    return NO;
+}
 
 - (BOOL)openSketchFile:(NSString *)filename directory:(NSString*) directory contentMode:(NSString*)mode {
     if (filename) {
@@ -293,6 +311,7 @@
     [_paths removeAllObjects];
     _currentPath = nil;
     _needsFullRedraw = YES;
+    _backgroundImage = nil;
     [self setNeedsDisplay];
     [self notifyPathsUpdate];
 }
